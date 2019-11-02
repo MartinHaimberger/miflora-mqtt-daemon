@@ -146,7 +146,7 @@ def init_sensors(sensor_type, sensors):
         mac_regexp = "C4:7C:8D:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}"
     elif sensor_type == sensor_type_mitempbt:
         config_section = sensor_type_mitempbt
-        mac_regexp = "4C:65:A8:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}"
+        mac_regexp = "[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}:[0-9A-F]{2}"
     else:
         print_line('Unknown device type: {}'.format(sensor_type), error=True, sd_notify=True)
         sys.exit(1)
@@ -483,19 +483,19 @@ elif reporting_mode == 'homeassistant-mqtt':
             if 'device_class' in params:
                 payload['device_class'] = params['device_class']
             mqtt_client.publish('{}/{}_{}/config'.format(topic_path, flora_name, sensor).lower(), json.dumps(payload), 1, True)
-    for [mitempbt_name, mitempbt] in mitempbts.items():
-        topic_path = '{}/sensor/{}'.format(base_topic, mitempbt_name)
-        base_payload = {
-            "state_topic": "{}/state".format(topic_path).lower()
-        }
-        for sensor, params in mitempbt_parameters.items():
-            payload = dict(base_payload.items())
-            payload['unit_of_measurement'] = params['unit']
-            payload['value_template'] = "{{ value_json.%s }}" % (sensor, )
-            payload['name'] = "{} {}".format(mitempbt_name, sensor.title())
-            if 'device_class' in params:
-                payload['device_class'] = params['device_class']
-            mqtt_client.publish('{}/{}_{}/config'.format(topic_path, mitempbt_name, sensor).lower(), json.dumps(payload), 1, True)
+        for [mitempbt_name, mitempbt] in mitempbts.items():
+            topic_path = '{}/sensor/{}'.format(base_topic, mitempbt_name)
+            base_payload = {
+                "state_topic": "{}/state".format(topic_path).lower()
+            }
+            for sensor, params in mitempbt_parameters.items():
+                payload = dict(base_payload.items())
+                payload['unit_of_measurement'] = params['unit']
+                payload['value_template'] = "{{ value_json.%s }}" % (sensor, )
+                payload['name'] = "{} {}".format(mitempbt_name, sensor.title())
+                if 'device_class' in params:
+                    payload['device_class'] = params['device_class']
+                mqtt_client.publish('{}/{}_{}/config'.format(topic_path, mitempbt_name, sensor).lower(), json.dumps(payload), 1, True)
 elif reporting_mode == 'wirenboard-mqtt':
     print_line('Announcing {}/{} devices to MQTT broker for auto-discovery ...'.format(sensor_name_miflora, sensor_name_mitempbt))
     for [flora_name, flora] in mifloras.items():
@@ -511,6 +511,7 @@ elif reporting_mode == 'wirenboard-mqtt':
         mqtt_client.publish('{}/temperature/meta/type'.format(topic_path), 'temperature', 1, True)
         mqtt_client.publish('{}/timestamp/meta/type'.format(topic_path), 'text', 1, True)
     sleep(0.5) # some slack for the publish roundtrip and callback function
+    print()
 
     for [mitempbt_name, mitempbt] in mitempbts.items():
         mqtt_client.publish('/devices/{}/meta/name'.format(mitempbt_name), mitempbt_name, 1, True)
@@ -530,9 +531,13 @@ threads = []
 
 if len(mifloras) != 0:
     threads.append(sensorPooler(sensor_type_miflora, mifloras, miflora_parameters, miflora_sleep_period, hciLock))
+else:
+    print("no MiFlora sensors configured...")
 
 if len(mitempbts) != 0:
     threads.append(sensorPooler(sensor_type_mitempbt, mitempbts, mitempbt_parameters, mitempbt_sleep_period, hciLock))
+else:
+    print("no Mijia sensors configured...")
 
 for thread in threads:
    thread.join()
